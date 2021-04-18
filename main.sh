@@ -79,6 +79,10 @@ chooseWhereStoreEditedFile() {
         exit
     fi
 
+    if [[ $PROGRAM_MODE = $EDIT_VIDEO_MODE ]]; then
+        NEW_FILE_NAME+=".webm"
+    fi
+
     EDIT['destination']+="${DESTINATION_FOLDER}/${NEW_FILE_NAME} "
 }
 
@@ -135,16 +139,25 @@ askForVideoTrimStartAndDuration() {
 	--add-entry="Długość wycinanego fragmentu: ")
     
     exitIfUserLeftProgram $?
-    
-    EDIT['trim-start']=$(echo "$TRIM_INFO" | cut -d " " -f1)
-    EDIT['trim-duration']=$(echo "$TRIM_INFO" | cut -d " " -f2)
-    
+
+    if ! [[ "$TRIM_INFO" =~ ^[0-9]{2}:[0-5][0-9]:[0-5][0-9][[:space:]]{1}[0-9]{2}:[0-5][0-9]:[0-5][0-9]$ ]]; then
+        showErrorDialog "$WRONG_INPUT_MESSAGE"
+        askForVideoTrimStartAndDuration
+    else
+        EDIT['trim-start']=$(echo "$TRIM_INFO" | cut -d " " -f1)
+        EDIT['trim-duration']=$(echo "$TRIM_INFO" | cut -d " " -f2)
+    fi
 }
 
 # Przycina wideo
 trimVideo() {
+    zenity --info --width=300 --text="Wykonuje edycję" &
+    dialogIP=$!
     ffmpeg -ss ${EDIT['trim-start']} -i ${EDIT['file-path']} -t ${EDIT['trim-duration']} -vcodec copy \
     -acodec copy ${EDIT['destination']}
+    local OPERATION_RESULT=$?
+    kill $dialogIP
+    showOperationResult $OPERATION_RESULT
 }
 
 # Wykonuje operacje potrzebne do przyciecia wideo
@@ -155,8 +168,12 @@ performVideoTrimOperation() {
 
 # Oddziela audio z wideo
 extractVideoAudio() {
+    zenity --info --width=300 --text="Wykonuje edycję" &
+    dialogIP=$!
     ffmpeg -i ${EDIT['file-path']} -vn ${EDIT['destination']}
-    showOperationResult $?    
+    local OPERATION_RESULT=$?
+    kill $dialogIP
+    showOperationResult $OPERATION_RESULT  
 }
 
 # Wykonuje operacje potrzebne do oddzielenia audio z wideo
@@ -171,12 +188,21 @@ askForVideoNewVolume() {
 	--separator=" " \
 	--add-entry="Głośność: ")
     exitIfUserLeftProgram $?
+
+    if ! [[ "${EDIT['audio-speed']}" =~ ^[0-9]{1}\.[0-9]{1,2}$ ]]; then
+        showErrorDialog "$WRONG_INPUT_MESSAGE"
+        askForVideoNewVolume
+    fi
 }
 
 # Zmienia glosnosc wideo
 adjustVideoVolume() {
+    zenity --info --width=300 --text="Wykonuje edycję" &
+    dialogIP=$!
     ffmpeg -i ${EDIT['file-path']} -filter:a "volume=${EDIT['video-volume']}" -preset ultrafast ${EDIT['destination']} 
-    showOperationResult $?
+    local OPERATION_RESULT=$?
+    kill $dialogIP
+    showOperationResult $OPERATION_RESULT  
 }
 
 # Wykonuje operacje potrzebne do edycji glosnosci wideo
@@ -386,7 +412,6 @@ executeDownload() {
     local PIPE_RESULTS=("${PIPESTATUS[@]}")
 
     if [[ ${PIPE_RESULTS[2]} != 0 ]]; then
-        echo "Tutaj jestem"
         showErrorDialog "$UNSUCCESSFUL_OPERATION_MESSAGE"
     else
         showOperationResult ${PIPE_RESULTS[0]}
@@ -475,5 +500,3 @@ startProgram() {
 }
 
 startProgram
-
-
