@@ -22,8 +22,13 @@ AUDIO_CUT_OPERATION="Wytnij Fragment"
 AUDIO_CHANGE_SPEED="Zmień Prędkość"
 AUDIO_CHANGE_VOLUME="Zmień Głośność" 
 
+VIDEO_CUT_OPERATION="Wytnij Fragment"
+VIDEO_EXTRACT_AUDIO="Oddziel Audio"
+VIDEO_CHANGE_VOLUME="Zmień Głośność" 
+
 WRONG_LINK_MESSAGE="Podano niepoprawny link"
 WRONG_INPUT_MESSAGE="Podano złe dane"
+WRONG_FILE_FORMAT_MESSAGE="Plik ma zły format"
 UNSUCCESSFUL_OPERATION_MESSAGE="Operacja nie powiodła się, sprawdź wszystkie dane"
 SUCCESSFUL_OPERATION_MESSAGE="Operacja powiodła się"
 
@@ -78,6 +83,130 @@ chooseWhereStoreEditedFile() {
 }
 
 # ==============================
+# Funkcje dotyczace edycji Wideo
+# ==============================
+
+# Pyta o wybranie formy edycji
+chooseVideoEditOperation() {
+    EDIT['operation']=$(zenity --list \
+    --width=300 --height=200 \
+    --radiolist \
+    --title="Wybierz Operacje" \
+    --text="" \
+    --column="" --column="Opcja" \
+    TRUE "$VIDEO_CUT_OPERATION" \
+    FALSE "$VIDEO_EXTRACT_AUDIO" \
+    FALSE "$VIDEO_CHANGE_VOLUME")
+}
+
+# Sprawdza czy przekazany do funkcji plik ma poprawne rozszerzenie
+checkIfFileIsVideo() {
+    if file -i $1 | grep -q video  ; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Pyta uzytkownika o wskazanie pliku do edycji
+chooseVideoFile() {
+    local FILE_PATH=$(zenity --file-selection --title="Wybierz Plik Wideo")
+
+    if [[ -z "$FILE_PATH" ]]; then
+        exit
+    fi
+
+    checkIfFileIsVideo "$FILE_PATH"
+    if [[ $? != 0 ]]; then
+        showErrorDialog "$WRONG_FILE_FORMAT_MESSAGE"
+        chooseVideoFile
+    fi
+
+    FILE_PATH+=" "
+    EDIT['file-path']=$FILE_PATH
+}
+
+# Pyta o dane potrzebne do przyciecia wideo
+askForVideoTrimStartAndDuration() {
+    local TRIM_INFO=$(zenity --forms --title="Wprowadź informacje o wycięciu" \
+	--text="Wprowadź w formacie (hh:mm:ss)" \
+	--separator=" " \
+	--add-entry="Wytnij od: " \
+	--add-entry="Długość wycinanego fragmentu: ")
+    
+    exitIfUserLeftProgram $?
+    
+    EDIT['trim-start']=$(echo "$TRIM_INFO" | cut -d " " -f1)
+    EDIT['trim-duration']=$(echo "$TRIM_INFO" | cut -d " " -f2)
+    
+}
+
+# Przycina wideo
+trimVideo() {
+    ffmpeg -ss ${EDIT['trim-start']} -i ${EDIT['file-path']} -t ${EDIT['trim-duration']} -vcodec copy \
+    -acodec copy ${EDIT['destination']}
+}
+
+# Wykonuje operacje potrzebne do przyciecia wideo
+performVideoTrimOperation() {
+    askForVideoTrimStartAndDuration
+    trimVideo
+}
+
+# Oddziela audio z wideo
+extractVideoAudio() {
+    ffmpeg -i ${EDIT['file-path']} -vn ${EDIT['destination']}
+    showOperationResult $?    
+}
+
+# Wykonuje operacje potrzebne do oddzielenia audio z wideo
+performVideoExtractAudioOperation() {
+    extractVideoAudio
+}
+
+# Pyta jaka ma byc glosnosc edytowanego wideo
+askForVideoNewVolume() {
+    EDIT['video-volume']=$(zenity --forms --title="Wprowadź informacje o głośności" \
+	--text="Wprowadź w nową głośność video w porównaniu do oryginału (1.5, 0.75, 0.5, etc.)" \
+	--separator=" " \
+	--add-entry="Głośność: ")
+    exitIfUserLeftProgram $?
+}
+
+# Zmienia glosnosc wideo
+adjustVideoVolume() {
+    ffmpeg -i ${EDIT['file-path']} -filter:a "volume=${EDIT['video-volume']}" -preset ultrafast ${EDIT['destination']} 
+    showOperationResult $?
+}
+
+# Wykonuje operacje potrzebne do edycji glosnosci wideo
+performVideoVolumeOperation() {
+    askForVideoNewVolume
+    adjustVideoVolume
+}
+
+# UruVideoa poprawna operacje edycji
+runProperVideoEditOperation() {
+    if [[ "${EDIT['operation']}" = "$VIDEO_CUT_OPERATION" ]]; then
+        performVideoTrimOperation
+    elif [[ "${EDIT['operation']}" = "$VIDEO_EXTRACT_AUDIO" ]]; then
+        performVideoExtractAudioOperation
+    elif [[ "${EDIT['operation']}" = "$VIDEO_CHANGE_VOLUME" ]]; then
+        performVideoVolumeOperation
+    fi
+}
+
+# Glowna funkcja odpowiadajaca za edycje video
+editVideo() {
+    declare -A EDIT
+
+    chooseVideoFile
+    chooseVideoEditOperation
+    chooseWhereStoreEditedFile
+    runProperVideoEditOperation
+}
+
+# ==============================
 # Funkcje dotyczace edycji Audio
 # ==============================
 
@@ -98,7 +227,7 @@ chooseAudioFile() {
 
     checkIfAudioFormatIsCorrect "$FILE_PATH"
     if [[ $? != 0 ]]; then
-        showWrongFileFormatDialog
+        showErrorDialog "$WRONG_FILE_FORMAT_MESSAGE"
         chooseAudioFile
     fi
 
@@ -318,8 +447,7 @@ runProperMode() {
     if [[ $PROGRAM_MODE = $DOWNLOAD_VIDEO_MODE || $PROGRAM_MODE = $DOWNLOAD_AUDIO_MODE ]]; then
         downloadFile
     elif [[ $PROGRAM_MODE = $EDIT_VIDEO_MODE ]]; then
-        # editVideo
-        echo "Edytuje Wideo"
+        editVideo
     elif [[ $PROGRAM_MODE = $EDIT_AUDIO_MODE ]]; then
         editAudio
     fi
