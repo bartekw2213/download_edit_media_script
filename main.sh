@@ -29,6 +29,7 @@ VIDEO_CHANGE_VOLUME="Zmień Głośność"
 WRONG_LINK_MESSAGE="Podano niepoprawny link"
 WRONG_INPUT_MESSAGE="Podano złe dane"
 WRONG_FILE_FORMAT_MESSAGE="Plik ma zły format"
+FILE_LENGTH_EXCEEDED="Przekroczono długość pliku"
 UNSUCCESSFUL_OPERATION_MESSAGE="Operacja nie powiodła się, sprawdź wszystkie dane"
 SUCCESSFUL_OPERATION_MESSAGE="Operacja powiodła się"
 
@@ -81,6 +82,8 @@ chooseWhereStoreEditedFile() {
 
     if [[ $PROGRAM_MODE = $EDIT_VIDEO_MODE ]]; then
         NEW_FILE_NAME+=".webm"
+    elif [[ $PROGRAM_MODE = $EDIT_AUDIO_MODE ]]; then
+        NEW_FILE_NAME+=".mp3"
     fi
 
     EDIT['destination']+="${DESTINATION_FOLDER}/${NEW_FILE_NAME} "
@@ -105,7 +108,7 @@ chooseVideoEditOperation() {
 
 # Sprawdza czy przekazany do funkcji plik ma poprawne rozszerzenie
 checkIfFileIsVideo() {
-    if file -i $1 | grep -q video  ; then
+    if file -i "$1" | grep -q video  ; then
         return 0
     else
         return 1
@@ -124,10 +127,30 @@ chooseVideoFile() {
     if [[ $? != 0 ]]; then
         showErrorDialog "$WRONG_FILE_FORMAT_MESSAGE"
         chooseVideoFile
+    else
+        EDIT['file-path']=$FILE_PATH
     fi
+}
 
-    FILE_PATH+=" "
-    EDIT['file-path']=$FILE_PATH
+# Sprawdza czy dlugosc wycinanego fragmentu
+#nie przekracza dlugosci wideo
+checkIfVideoTrimDontExceedVideoLength() {
+    local START=$(echo "$TRIM_INFO" | cut -d " " -f1)
+    local LENGTH=$(echo "$TRIM_INFO" | cut -d " " -f2)
+    local START_H=$(echo "$START" | cut -d ":" -f1)
+    local START_M=$(echo "$START" | cut -d ":" -f2)
+    local START_S=$(echo "$START" | cut -d ":" -f3)
+    local LENGTH_H=$(echo "$LENGTH" | cut -d ":" -f1)
+    local LENGTH_M=$(echo "$LENGTH" | cut -d ":" -f2)
+    local LENGTH_S=$(echo "$LENGTH" | cut -d ":" -f3)
+
+    local TOTAL=$(($START_H*3600 + $START_M*60 + $START_S + $LENGTH_H*3600 + $LENGTH_M*60 + $LENGTH_S))
+    local VIDEO_LENGTH=$(ffprobe -i "${EDIT['file-path']}" -show_format -v quiet | sed -n 's/duration=//p' | cut -d "." -f1)
+    
+    if [[ "$TOTAL" -gt "$VIDEO_LENGTH" ]]; then
+        return 1
+    fi
+    return 0
 }
 
 # Pyta o dane potrzebne do przyciecia wideo
@@ -139,8 +162,10 @@ askForVideoTrimStartAndDuration() {
 	--add-entry="Długość wycinanego fragmentu: ")
     
     exitIfUserLeftProgram $?
+    checkIfVideoTrimDontExceedVideoLength "$TRIM_INFO"
+    local DONT_EXCEED=$?
 
-    if ! [[ "$TRIM_INFO" =~ ^[0-9]{2}:[0-5][0-9]:[0-5][0-9][[:space:]]{1}[0-9]{2}:[0-5][0-9]:[0-5][0-9]$ ]]; then
+    if ! [[ "$DONT_EXCEED" -eq 0 && "$TRIM_INFO" =~ ^[0-9]{2}:[0-5][0-9]:[0-5][0-9][[:space:]]{1}[0-9]{2}:[0-5][0-9]:[0-5][0-9]$ ]]; then
         showErrorDialog "$WRONG_INPUT_MESSAGE"
         askForVideoTrimStartAndDuration
     else
@@ -274,6 +299,20 @@ chooseEditOperation() {
     FALSE "$AUDIO_CHANGE_VOLUME")
 }
 
+# Sprawdza czy uzytkownik nie chce przyciac fragmentu wykraczajacego
+# poza dlugosc nagrania
+checkIfAudioTrimDontExceedAudioLength() {
+    local START=$(echo "${EDIT['trim-info']}" | cut -d " " -f1)
+    local LENGTH=$(echo "${EDIT['trim-info']}" | cut -d " " -f2)
+    local TOTAL=$(($START+$LENGTH))
+    local AUDIO_LENGTH=$(sox ${EDIT['file-path']} -n stat 2>&1 | sed -n 's#^Length (seconds):[^0-9]*\([0-9.]*\)$#\1#p')
+    AUDIO_LENGTH=$(echo $AUDIO_LENGTH | cut -d "." -f1)
+    if [[ "$TOTAL" -gt "$AUDIO_LENGTH" ]]; then
+        showErrorDialog "$FILE_LENGTH_EXCEEDED"
+        askForAudioTrimStartAndDuration
+    fi
+}
+
 # Pyta o gdzie i o ile przyciac plik audio
 askForAudioTrimStartAndDuration() {
     EDIT['trim-info']=$(zenity --forms --title="Wprowadź informacje o wycięciu" \
@@ -283,6 +322,7 @@ askForAudioTrimStartAndDuration() {
 	--add-entry="Długość wycinanego fragmentu: ")
 
     exitIfUserLeftProgram $?
+    checkIfAudioTrimDontExceedAudioLength
     if ! [[ "${EDIT['trim-info']}" =~ ^[0-9]+[[:space:]]{1}[0-9]+$ ]]; then
         showErrorDialog "$WRONG_INPUT_MESSAGE"
         askForAudioTrimStartAndDuration
