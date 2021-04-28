@@ -181,8 +181,8 @@ askForVideoTrimStartAndDuration() {
 trimVideo() {
     zenity --info --width=300 --text="Wykonuje edycję" &
     local dialogIP=$!
-    ffmpeg -ss "${EDIT['trim-start']}" -i "${EDIT['file-path']}" -t "${EDIT['trim-duration']}" -vcodec copy \
-    -acodec copy "${EDIT['destination']}"
+    ffmpeg -ss ${EDIT['trim-start']} -i ${EDIT['file-path']} -t ${EDIT['trim-duration']} -vcodec copy \
+    -acodec copy ${EDIT['destination']}
     local OPERATION_RESULT=$?
     kill $dialogIP
     showOperationResult "$OPERATION_RESULT"
@@ -198,7 +198,7 @@ performVideoTrimOperation() {
 extractVideoAudio() {
     zenity --info --width=300 --text="Wykonuje edycję" &
     dialogIP=$!
-    ffmpeg -i "${EDIT['file-path']}" -vn "${EDIT['destination']}"
+    ffmpeg -i ${EDIT['file-path']} -vn ${EDIT['destination']}
     local OPERATION_RESULT=$?
     kill $dialogIP
     showOperationResult "$OPERATION_RESULT"  
@@ -227,7 +227,7 @@ askForVideoNewVolume() {
 adjustVideoVolume() {
     zenity --info --width=300 --text="Wykonuje edycję" &
     local dialogIP=$!
-    ffmpeg -i "${EDIT['file-path']}" -filter:a "volume=${EDIT['video-volume']}" -preset ultrafast "${EDIT['destination']}" 
+    ffmpeg -i ${EDIT['file-path']} -filter:a "volume=${EDIT['video-volume']}" -preset ultrafast ${EDIT['destination']}
     local OPERATION_RESULT=$?
     kill $dialogIP
     showOperationResult "$OPERATION_RESULT"  
@@ -332,7 +332,7 @@ askForAudioTrimStartAndDuration() {
 
 # Wykonuje operacje wyciecia fragmentu
 trimAudio() {
-    sox "${EDIT['file-path']}" "${EDIT['destination']}" trim "${EDIT['trim-info']}"
+    sox ${EDIT['file-path']} ${EDIT['destination']} trim ${EDIT['trim-info']}
     showOperationResult $?
 }
 
@@ -358,7 +358,7 @@ askForAudioNewSpeed() {
 
 # Zmienia predkosc audio
 adjustAudioSpeed() {
-    sox "${EDIT['file-path']}" "${EDIT['destination']}" speed "${EDIT['audio-speed']}"
+    sox ${EDIT['file-path']} ${EDIT['destination']} speed ${EDIT['audio-speed']}
     showOperationResult $?
 }
 
@@ -384,7 +384,7 @@ askForAudioNewVolume() {
 
 # Dostosowuje glosnosc audio
 adjustAudioVolume() {
-    sox -v "${EDIT['audio-volume']}" "${EDIT['file-path']}" "${EDIT['destination']}" 
+    sox -v ${EDIT['audio-volume']} ${EDIT['file-path']} ${EDIT['destination']}
     showOperationResult "$?"
 }
 
