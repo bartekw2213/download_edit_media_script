@@ -303,14 +303,19 @@ chooseAudioEditOperation() {
 # Sprawdza czy uzytkownik nie chce przyciac fragmentu wykraczajacego
 # poza dlugosc nagrania
 checkIfAudioTrimDontExceedAudioLength() {
-    local START=$(echo "${EDIT['trim-info']}" | cut -d " " -f1)
-    local LENGTH=$(echo "${EDIT['trim-info']}" | cut -d " " -f2)
-    local TOTAL=$(($START+$LENGTH))
-    local AUDIO_LENGTH=$(sox ${EDIT['file-path']} -n stat 2>&1 | sed -n 's#^Length (seconds):[^0-9]*\([0-9.]*\)$#\1#p')
-    AUDIO_LENGTH=$(echo $AUDIO_LENGTH | cut -d "." -f1)
-    if [[ "$TOTAL" -gt "$AUDIO_LENGTH" ]]; then
-        showErrorDialog "$FILE_LENGTH_EXCEEDED"
+    if ! [[ "${EDIT['trim-info']}" =~ ^[0-9]+[[:space:]]{1}[0-9]+$ ]]; then
+        showErrorDialog "$WRONG_INPUT_MESSAGE"
         askForAudioTrimStartAndDuration
+    else
+        local START=$(echo "${EDIT['trim-info']}" | cut -d " " -f1)
+        local LENGTH=$(echo "${EDIT['trim-info']}" | cut -d " " -f2)
+        local TOTAL=$(($START+$LENGTH))
+        local AUDIO_LENGTH=$(sox ${EDIT['file-path']} -n stat 2>&1 | sed -n 's#^Length (seconds):[^0-9]*\([0-9.]*\)$#\1#p')
+        AUDIO_LENGTH=$(echo $AUDIO_LENGTH | cut -d "." -f1)
+        if [[ "$TOTAL" -gt "$AUDIO_LENGTH" ]]; then
+            showErrorDialog "$FILE_LENGTH_EXCEEDED"
+            askForAudioTrimStartAndDuration
+        fi
     fi
 }
 
@@ -324,10 +329,6 @@ askForAudioTrimStartAndDuration() {
 
     exitIfUserLeftProgram $?
     checkIfAudioTrimDontExceedAudioLength
-    if ! [[ "${EDIT['trim-info']}" =~ ^[0-9]+[[:space:]]{1}[0-9]+$ ]]; then
-        showErrorDialog "$WRONG_INPUT_MESSAGE"
-        askForAudioTrimStartAndDuration
-    fi
 }
 
 # Wykonuje operacje wyciecia fragmentu
