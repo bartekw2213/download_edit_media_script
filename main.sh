@@ -65,6 +65,12 @@ exitIfUserLeftProgram() {
     fi
 }
 
+exitIfInputIsEmpty() {
+    if [[ -z "$1" ]]; then
+        exit
+    fi
+}
+
 # ===============================
 # Ogolne funkcje dotyczace edycji
 # ===============================
@@ -72,13 +78,12 @@ exitIfUserLeftProgram() {
 # Pyta gdzie zapisać zedytowany plik
 chooseWhereStoreEditedFile() {
     local DESTINATION_FOLDER=$(zenity --file-selection --title="Wybierz Katalog Dla Nowego Pliku" --directory)
+    exitIfInputIsEmpty "$DESTINATION_FOLDER"
+
     local NEW_FILE_NAME=$(zenity --entry \
     --title="Nazwa pliku" \
     --text="Wprowadź nazwę nowego pliku:")
-
-    if [[ -z "$DESTINATION_FOLDER" || -z "$NEW_FILE_NAME" ]]; then
-        exit
-    fi
+    exitIfInputIsEmpty "$NEW_FILE_NAME"
 
     if [[ $PROGRAM_MODE = $EDIT_VIDEO_MODE ]]; then
         NEW_FILE_NAME+=".webm"
@@ -104,6 +109,7 @@ chooseVideoEditOperation() {
     TRUE "$VIDEO_CUT_OPERATION" \
     FALSE "$VIDEO_EXTRACT_AUDIO" \
     FALSE "$VIDEO_CHANGE_VOLUME")
+    exitIfInputIsEmpty "${EDIT['operation']}"
 }
 
 # Sprawdza czy przekazany do funkcji plik ma poprawne rozszerzenie
@@ -118,17 +124,14 @@ checkIfFileIsVideo() {
 # Pyta uzytkownika o wskazanie pliku do edycji
 chooseVideoFile() {
     local FILE_PATH=$(zenity --file-selection --title="Wybierz Plik Wideo")
-
-    if [[ -z "$FILE_PATH" ]]; then
-        exit
-    fi
+    exitIfInputIsEmpty "$FILE_PATH"
 
     checkIfFileIsVideo "$FILE_PATH"
     if [[ $? != 0 ]]; then
         showErrorDialog "$WRONG_FILE_FORMAT_MESSAGE"
         chooseVideoFile
     else
-        EDIT['file-path']=$FILE_PATH
+        EDIT['file-path']="$FILE_PATH"
     fi
 }
 
@@ -177,12 +180,12 @@ askForVideoTrimStartAndDuration() {
 # Przycina wideo
 trimVideo() {
     zenity --info --width=300 --text="Wykonuje edycję" &
-    dialogIP=$!
-    ffmpeg -ss ${EDIT['trim-start']} -i ${EDIT['file-path']} -t ${EDIT['trim-duration']} -vcodec copy \
-    -acodec copy ${EDIT['destination']}
+    local dialogIP=$!
+    ffmpeg -ss "${EDIT['trim-start']}" -i "${EDIT['file-path']}" -t "${EDIT['trim-duration']}" -vcodec copy \
+    -acodec copy "${EDIT['destination']}"
     local OPERATION_RESULT=$?
     kill $dialogIP
-    showOperationResult $OPERATION_RESULT
+    showOperationResult "$OPERATION_RESULT"
 }
 
 # Wykonuje operacje potrzebne do przyciecia wideo
@@ -195,10 +198,10 @@ performVideoTrimOperation() {
 extractVideoAudio() {
     zenity --info --width=300 --text="Wykonuje edycję" &
     dialogIP=$!
-    ffmpeg -i ${EDIT['file-path']} -vn ${EDIT['destination']}
+    ffmpeg -i "${EDIT['file-path']}" -vn "${EDIT['destination']}"
     local OPERATION_RESULT=$?
     kill $dialogIP
-    showOperationResult $OPERATION_RESULT  
+    showOperationResult "$OPERATION_RESULT"  
 }
 
 # Wykonuje operacje potrzebne do oddzielenia audio z wideo
@@ -223,11 +226,11 @@ askForVideoNewVolume() {
 # Zmienia glosnosc wideo
 adjustVideoVolume() {
     zenity --info --width=300 --text="Wykonuje edycję" &
-    dialogIP=$!
-    ffmpeg -i ${EDIT['file-path']} -filter:a "volume=${EDIT['video-volume']}" -preset ultrafast ${EDIT['destination']} 
+    local dialogIP=$!
+    ffmpeg -i "${EDIT['file-path']}" -filter:a "volume=${EDIT['video-volume']}" -preset ultrafast "${EDIT['destination']}" 
     local OPERATION_RESULT=$?
     kill $dialogIP
-    showOperationResult $OPERATION_RESULT  
+    showOperationResult "$OPERATION_RESULT"  
 }
 
 # Wykonuje operacje potrzebne do edycji glosnosci wideo
@@ -271,10 +274,7 @@ checkIfAudioFormatIsCorrect() {
 # Pyta uzytkownika o wskazanie pliku do edycji
 chooseAudioFile() {
     local FILE_PATH=$(zenity --file-selection --title="Wybierz Plik Audio")
-
-    if [[ -z "$FILE_PATH" ]]; then
-        exit
-    fi
+    exitIfInputIsEmpty "$FILE_PATH"
 
     checkIfAudioFormatIsCorrect "$FILE_PATH"
     if [[ $? != 0 ]]; then
@@ -283,11 +283,11 @@ chooseAudioFile() {
     fi
 
     FILE_PATH+=" "
-    EDIT['file-path']=$FILE_PATH
+    EDIT['file-path']="$FILE_PATH"
 }
 
 # Pyta o wybranie formy edycji
-chooseEditOperation() {
+chooseAudioEditOperation() {
     EDIT['operation']=$(zenity --list \
     --width=300 --height=200 \
     --radiolist \
@@ -297,6 +297,7 @@ chooseEditOperation() {
     TRUE "$AUDIO_CUT_OPERATION" \
     FALSE "$AUDIO_CHANGE_SPEED" \
     FALSE "$AUDIO_CHANGE_VOLUME")
+    exitIfInputIsEmpty "${EDIT['operation']}"
 }
 
 # Sprawdza czy uzytkownik nie chce przyciac fragmentu wykraczajacego
@@ -331,7 +332,7 @@ askForAudioTrimStartAndDuration() {
 
 # Wykonuje operacje wyciecia fragmentu
 trimAudio() {
-    sox ${EDIT['file-path']} ${EDIT['destination']} trim ${EDIT['trim-info']}
+    sox "${EDIT['file-path']}" "${EDIT['destination']}" trim "${EDIT['trim-info']}"
     showOperationResult $?
 }
 
@@ -357,7 +358,7 @@ askForAudioNewSpeed() {
 
 # Zmienia predkosc audio
 adjustAudioSpeed() {
-    sox ${EDIT['file-path']} ${EDIT['destination']} speed ${EDIT['audio-speed']}
+    sox "${EDIT['file-path']}" "${EDIT['destination']}" speed "${EDIT['audio-speed']}"
     showOperationResult $?
 }
 
@@ -383,8 +384,8 @@ askForAudioNewVolume() {
 
 # Dostosowuje glosnosc audio
 adjustAudioVolume() {
-    sox -v ${EDIT['audio-volume']} ${EDIT['file-path']} ${EDIT['destination']} 
-    showOperationResult $?
+    sox -v "${EDIT['audio-volume']}" "${EDIT['file-path']}" "${EDIT['destination']}" 
+    showOperationResult "$?"
 }
 
 # Wykonuje zadania potrzebne do zmiany glosnosci audio
@@ -409,7 +410,7 @@ editAudio() {
     declare -A EDIT
 
     chooseAudioFile
-    chooseEditOperation
+    chooseAudioEditOperation
     chooseWhereStoreEditedFile
     runProperAudioEditOperation
 }
@@ -441,7 +442,7 @@ handleAudioFileDownload() {
 
 # Wykonuje pobieranie
 executeDownload() {
-    youtube-dl ${DOWNLOAD['flags']} ${DOWNLOAD['url']} | 
+    youtube-dl "${DOWNLOAD['flags']}" "${DOWNLOAD['url']}" | 
     grep --line-buffered -oP '^\[download\].*?\K([0-9.]+\%|#\d+ of \d)' |
         zenity --progress \
     --title="Pobieranie" \
@@ -461,10 +462,7 @@ executeDownload() {
 # Pyta użytkownika gdzie ma zostać zapisany nowy plik
 askUserForDownloadFileDestination() {
     local DESTINATION_FOLDER=$(zenity --file-selection --title="Wybierz Katalog" --directory)
-
-    if [[ -z "$DESTINATION_FOLDER" ]]; then
-        exit
-    fi
+    exitIfInputIsEmpty "$DESTINATION_FOLDER"
 
     DESTINATION_FOLDER+="/"
     DOWNLOAD['flags']+="-o ${DESTINATION_FOLDER}%(title)s-%(id)s.%(ext)s "
@@ -495,7 +493,7 @@ downloadFile() {
     askUserForDownloadUrl
     askUserForDownloadFileDestination
 
-    if [[ $PROGRAM_MODE = $DOWNLOAD_AUDIO_MODE ]]; then
+    if [[ "$PROGRAM_MODE" = "$DOWNLOAD_AUDIO_MODE" ]]; then
         handleAudioFileDownload
     fi    
 
@@ -509,11 +507,11 @@ downloadFile() {
 # Uruchamia poprawny tryb programu, w zaleznosci od tego
 # czy uzytkownik chce pobrac lub edytowac audio/video
 runProperMode() {
-    if [[ $PROGRAM_MODE = $DOWNLOAD_VIDEO_MODE || $PROGRAM_MODE = $DOWNLOAD_AUDIO_MODE ]]; then
+    if [[ "$PROGRAM_MODE" = "$DOWNLOAD_VIDEO_MODE" || "$PROGRAM_MODE" = "$DOWNLOAD_AUDIO_MODE" ]]; then
         downloadFile
-    elif [[ $PROGRAM_MODE = $EDIT_VIDEO_MODE ]]; then
+    elif [[ "$PROGRAM_MODE" = "$EDIT_VIDEO_MODE" ]]; then
         editVideo
-    elif [[ $PROGRAM_MODE = $EDIT_AUDIO_MODE ]]; then
+    elif [[ "$PROGRAM_MODE" = "$EDIT_AUDIO_MODE" ]]; then
         editAudio
     fi
 }
