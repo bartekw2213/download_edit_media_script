@@ -86,7 +86,7 @@ chooseWhereStoreEditedFile() {
     exitIfInputIsEmpty "$NEW_FILE_NAME"
 
     if [[ $PROGRAM_MODE = $EDIT_VIDEO_MODE ]]; then
-        NEW_FILE_NAME+=".webm"
+        NEW_FILE_NAME+=".mkv"
     elif [[ $PROGRAM_MODE = $EDIT_AUDIO_MODE ]]; then
         NEW_FILE_NAME+=".mp3"
     fi
@@ -217,7 +217,7 @@ askForVideoNewVolume() {
 	--add-entry="Głośność: ")
     exitIfUserLeftProgram $?
 
-    if ! [[ "${EDIT['audio-speed']}" =~ ^[0-9]{1}\.[0-9]{1,2}$ ]]; then
+    if ! [[ "${EDIT['video-volume']}" =~ ^[0-9]{1}\.[0-9]{1,2}$ ]]; then
         showErrorDialog "$WRONG_INPUT_MESSAGE"
         askForVideoNewVolume
     fi
@@ -376,7 +376,7 @@ askForAudioNewVolume() {
 	--add-entry="Głośność: ")
     exitIfUserLeftProgram $?
 
-    if ! [[ "${EDIT['audio-speed']}" =~ ^[0-9]{1}\.[0-9]{1,2}$ ]]; then
+    if ! [[ "${EDIT['audio-volume']}" =~ ^[0-9]{1}\.[0-9]{1,2}$ ]]; then
         showErrorDialog "$WRONG_INPUT_MESSAGE"
         askForAudioNewVolume
     fi
